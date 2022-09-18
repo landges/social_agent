@@ -7,6 +7,13 @@ from io import BytesIO
 import base64
 import re
 from urllib.parse import urlparse
+from sqlalchemy.orm import Session, sessionmaker
+from db_sa import *
+
+
+engine = create_engine("postgresql+psycopg2://postgres:postgres@localhost/social_agent")
+session = sessionmaker(bind=engine)
+
 
 VIDEO = ('.m1v', '.mpeg', '.mov', '.qt', '.mpa', '.mpg', '.mpe', '.avi', '.movie', '.mp4')
 AUDIO = ('.ra', '.aif', '.aiff', '.aifc', '.wav', '.au', '.snd', '.mp3', '.mp2')
@@ -79,18 +86,31 @@ async def on_ready():
     print(f'Bot connected as {bot.user}')
 
 
+@bot.event
 async def on_member_join(member):
-    channel = member.channel
-    if text_is_swear(member.nick):
-        await channel.send(f'We don\'t like such nicknames. Think about it')
+    if text_is_swear(member.name):
+        for ch in bot.get_guild(member.guild.id).channels:
+            if ch.name == 'основной':
+                await bot.get_channel(ch.id).send(f'We don\'t like such nicknames. Think about it')
         await member.ban(reason="Swear nickname")
     else:
-        await channel.send(f'{member} has arrived')
+        session = Session(bind=engine)
+        new_user = User(username=member.name, user_code=member.mention,dis_id=member.id, created_on=member.created_at)
+        session.add(new_user)
+        session.commit()
+        new_embed = UserEmbedding(user=new_user)
+        session.add(new_embed)
+        session.commit()
+        for ch in bot.get_guild(member.guild.id).channels:
+            if ch.name == 'основной':
+                await bot.get_channel(ch.id).send(f'{member} has arrived')
+
 
 
 @bot.event
 async def on_message(message):
     if message.content == 'test':
+        print(message.author)
         await message.channel.send('Testing 1 2 3')
     # TODO database interaction
     if text_is_swear(message.content.lower()):
@@ -113,6 +133,7 @@ async def on_message(message):
 @bot.command()
 async def hello(ctx, arg=None):
     author = ctx.message.author
+    print(author.usernaame)
     await ctx.send(
         f'Pososi, {author}!')
 
