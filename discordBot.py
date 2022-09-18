@@ -10,16 +10,14 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session, sessionmaker
 from db_sa import *
 
-
 engine = create_engine("postgresql+psycopg2://postgres:postgres@localhost/social_agent")
 session = sessionmaker(bind=engine)
-
 
 VIDEO = ('.m1v', '.mpeg', '.mov', '.qt', '.mpa', '.mpg', '.mpe', '.avi', '.movie', '.mp4')
 AUDIO = ('.ra', '.aif', '.aiff', '.aifc', '.wav', '.au', '.snd', '.mp3', '.mp2')
 IMAGE = (
-'.ras', '.xwd', '.bmp', '.jpe', '.jpg', '.jpeg', '.xpm', '.ief', '.pbm', '.tif', '.gif', '.ppm', '.xbm', '.tiff',
-'.rgb', '.pgm', '.png', '.pnm')
+    '.ras', '.xwd', '.bmp', '.jpe', '.jpg', '.jpeg', '.xpm', '.ief', '.pbm', '.tif', '.gif', '.ppm', '.xbm', '.tiff',
+    '.rgb', '.pgm', '.png', '.pnm')
 IMAGE_FOLDER_ID = "som3f0ld3r1D"
 IMAGE_SRV_URL = 'https://...'
 LINK_REGEX = r"(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])"
@@ -81,8 +79,26 @@ def process_json(content):
     return True
 
 
+def insert_users(users_ids):
+    session = Session(bind=engine)
+    for id in users_ids:
+        member = bot.get_user(id)
+        new_user = User(username=member.name, user_code=member.mention, dis_id=member.id, created_on=member.created_at)
+        session.add(new_user)
+        session.commit()
+        new_embed = UserEmbedding(user=new_user)
+        session.add(new_embed)
+        session.commit()
+
+
 @bot.event
 async def on_ready():
+    session = Session(bind=engine)
+    users_db = {us.dis_id for us in session.query(User).all()}
+    users_bot = {us.id for us in bot.users if us.bot is False}
+    users_for_bd = users_bot - users_db
+    if len(users_for_bd) > 0:
+        insert_users(users_for_bd)
     print(f'Bot connected as {bot.user}')
 
 
@@ -95,16 +111,12 @@ async def on_member_join(member):
         await member.ban(reason="Swear nickname")
     else:
         session = Session(bind=engine)
-        new_user = User(username=member.name, user_code=member.mention,dis_id=member.id, created_on=member.created_at)
-        session.add(new_user)
-        session.commit()
-        new_embed = UserEmbedding(user=new_user)
-        session.add(new_embed)
-        session.commit()
+        get_user = session.query(User).filter(User.dis_id == member.id).all()
+        if len(get_user) == 0:
+            insert_users({member.id})
         for ch in bot.get_guild(member.guild.id).channels:
             if ch.name == 'основной':
                 await bot.get_channel(ch.id).send(f'{member} has arrived')
-
 
 
 @bot.event
