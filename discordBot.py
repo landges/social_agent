@@ -121,25 +121,33 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
-    if message.content == 'test':
-        print(message.author)
-        await message.channel.send('Testing 1 2 3')
-    # TODO database interaction
-    if text_is_swear(message.content.lower()):
-        await message.channel.send('Found swear message')
-    for domain in detect_domains(message.content):
-        # TODO database logs
-        if domain in domains_whitelist:
-            await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
-        elif domain in domains_blacklist:
-            await message.channel.send(f'{message.author} is  breaking the community rules. Reporting.')
-            message.delete()
-        else:
-            await message.channel.send(f'Potentially unwanted stuff detected. Reporting.')
-    # TODO database interaction
-    for at in message.attachments:
-        if at.url.split('.')[-1] in IMAGE:
-            await process_image(at.url)
+    if message.author.bot is False:
+        if message.content == 'test':
+            print(message.author)
+            await message.channel.send('Testing 1 2 3')
+        # TODO database interaction
+        is_swear = text_is_swear(message.content.lower())
+        if is_swear:
+            await message.channel.send('Found swear message')
+        for domain in detect_domains(message.content):
+            # TODO database logs
+            if domain in domains_whitelist:
+                await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
+            elif domain in domains_blacklist:
+                await message.channel.send(f'{message.author} is  breaking the community rules. Reporting.')
+                message.delete()
+            else:
+                await message.channel.send(f'Potentially unwanted stuff detected. Reporting.')
+        # TODO database interaction
+        for at in message.attachments:
+            if at.url.split('.')[-1] in IMAGE:
+                await process_image(at.url)
+        session = Session(bind=engine)
+        user = session.query(User).filter(User.dis_id==message.author.id).first()
+        new_message = Message(user=user,content=message.content, is_swear=is_swear)
+        session.add(new_message)
+        session.commit()
+        session.close()
 
 
 @bot.command()
