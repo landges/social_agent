@@ -1,5 +1,6 @@
 import discord
-from discord.ext import commands
+import asyncio
+from discord.ext import commands, tasks
 from config import settings
 from difflib import get_close_matches
 import requests
@@ -100,6 +101,7 @@ async def on_ready():
     if len(users_for_bd) > 0:
         insert_users(users_for_bd)
     print(f'Bot connected as {bot.user}')
+    # msg1.start()
 
 
 @bot.event
@@ -143,8 +145,8 @@ async def on_message(message):
             if at.url.split('.')[-1] in IMAGE:
                 await process_image(at.url)
         session = Session(bind=engine)
-        user = session.query(User).filter(User.dis_id==message.author.id).first()
-        new_message = Message(user=user,content=message.content, is_swear=is_swear)
+        user = session.query(User).filter(User.dis_id == message.author.id).first()
+        new_message = Message(user=user, content=message.content, is_swear=is_swear)
         session.add(new_message)
         session.commit()
         session.close()
@@ -164,6 +166,14 @@ async def getinfo(ctx, arg=None):
     await ctx.send(
         f'Sorry, no info, {author}!')
 
+
+@tasks.loop(seconds=5)
+async def msg1():
+    message_channel = bot.get_all_channels()
+    for ch in message_channel:
+        # TODO get last messages on time on task loop and insert to DB
+        if str(ch.type) == "text":
+            await ch.send('ddd')
 
 @bot.command(pass_context=True)
 @commands.has_permissions(administrator=True)
