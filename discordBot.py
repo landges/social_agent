@@ -10,10 +10,13 @@ import re
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session, sessionmaker
 from db_sa import *
+import nltk
+nltk.download('omw-1.4')
+from nltk.stem import WordNetLemmatizer
 
 engine = create_engine("postgresql+psycopg2://postgres:postgres@localhost/social_agent")
 session = sessionmaker(bind=engine)
-
+wnl = WordNetLemmatizer()
 VIDEO = ('.m1v', '.mpeg', '.mov', '.qt', '.mpa', '.mpg', '.mpe', '.avi', '.movie', '.mp4')
 AUDIO = ('.ra', '.aif', '.aiff', '.aifc', '.wav', '.au', '.snd', '.mp3', '.mp2')
 IMAGE = (
@@ -124,18 +127,23 @@ async def on_member_join(member):
 @bot.event
 async def on_message(message):
     if message.author.bot is False:
+        session = Session(bind=engine)
+        user = session.query(User).filter(User.dis_id == message.author.id).first()
+        msg = {'user': user, 'content': message.content}
         if message.content == 'test':
             print(message.author)
             await message.channel.send('Testing 1 2 3')
         # TODO database interaction
         is_swear = text_is_swear(message.content.lower())
         if is_swear:
+            msg['is_swear'] = True
             await message.channel.send('Found swear message')
         for domain in detect_domains(message.content):
             # TODO database logs
             if domain in domains_whitelist:
                 await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
             elif domain in domains_blacklist:
+                msg['is_ads'] = True
                 await message.channel.send(f'{message.author} is  breaking the community rules. Reporting.')
                 message.delete()
             else:
@@ -143,10 +151,9 @@ async def on_message(message):
         # TODO database interaction
         for at in message.attachments:
             if at.url.split('.')[-1] in IMAGE:
-                await process_image(at.url)
-        session = Session(bind=engine)
-        user = session.query(User).filter(User.dis_id == message.author.id).first()
-        new_message = Message(user=user, content=message.content, is_swear=is_swear)
+                process_image(at.url)
+        
+        new_message = Message(msg)
         session.add(new_message)
         session.commit()
         session.close()
