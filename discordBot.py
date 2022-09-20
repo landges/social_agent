@@ -130,21 +130,21 @@ async def on_message(message):
     if message.author.bot is False:
         session = Session(bind=engine)
         user = session.query(User).filter(User.dis_id == message.author.id).first()
-        msg = {'user': user, 'content': message.content}
+        new_message = Message(user=user, content=message.content, dis_id=message.id)
         if message.content == 'test':
             print(message.author)
             await message.channel.send('Testing 1 2 3')
         # TODO database interaction
         is_swear = text_is_swear(message.content.lower())
         if is_swear:
-            msg['is_swear'] = True
+            new_message.is_swear = True
             await message.channel.send('Found swear message')
         for domain in detect_domains(message.content):
             # TODO database logs
             if domain in domains_whitelist:
                 await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
             elif domain in domains_blacklist:
-                msg['is_ads'] = True
+                new_message.is_ads = True
                 await message.channel.send(f'{message.author} is  breaking the community rules. Reporting.')
                 message.delete()
             else:
@@ -155,8 +155,7 @@ async def on_message(message):
                 process_image(at.url)
         if message.reference is not None:
             ans_msg = session.query(Message).filter(Message.dis_id == message.reference.id).first()
-        msg['parent_id'] = ans_msg
-        new_message = Message(msg)
+            new_message.parent_id = ans_msg
         session.add(new_message)
         session.commit()
         session.close()
@@ -189,6 +188,7 @@ async def msg1():
 @commands.has_permissions(administrator=True)
 async def add_blacklist(ctx, args):
     domains = detect_domains(ctx.message.content)
+    print(f'Adding domains {domains} to blacklist')
     with open(BLACKLIST_PATH, 'a') as file:
         file.writelines(domains)
     domains_blacklist.extend(domains)
@@ -198,6 +198,7 @@ async def add_blacklist(ctx, args):
 @commands.has_permissions(administrator=True)
 async def add_whitelist(ctx, args):
     domains = detect_domains(ctx.message.content)
+    print(f'Adding domains {domains} to whitelist')
     with open(WHITELIST_PATH, 'a') as file:
         file.writelines(domains)
     domains_whitelist.extend(domains)

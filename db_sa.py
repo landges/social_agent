@@ -44,4 +44,11 @@ class UserEmbedding(Base):
     user = relationship("User")
 
 
+# def add_column(engine, table_name, column):
+#     column_name = column.name
+#     column_type = column.type.compile(dialect=engine.dialect)
+#     engine.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
+#
+#
+# add_column(engine, Message.__tablename__, Message.dis_id)
 Base.metadata.create_all(engine)
