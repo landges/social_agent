@@ -2,15 +2,13 @@ import discord
 import asyncio
 from discord.ext import commands, tasks
 from config import settings
-from difflib import get_close_matches
-import requests
-from io import BytesIO
-import base64
-import re
-from urllib.parse import urlparse
+
+from processing import detect_domains, text_is_swear, process_image, process_json, \
+    domain_blacklisted, domain_whitelisted, expand_blacklist, expand_whitelist
 from sqlalchemy.orm import Session, sessionmaker
 from db_sa import *
 import nltk
+
 nltk.download('omw-1.4')
 from nltk.stem import WordNetLemmatizer
 
@@ -22,65 +20,8 @@ AUDIO = ('.ra', '.aif', '.aiff', '.aifc', '.wav', '.au', '.snd', '.mp3', '.mp2')
 IMAGE = (
     '.ras', '.xwd', '.bmp', '.jpe', '.jpg', '.jpeg', '.xpm', '.ief', '.pbm', '.tif', '.gif', '.ppm', '.xbm', '.tiff',
     '.rgb', '.pgm', '.png', '.pnm')
-IMAGE_FOLDER_ID = "som3f0ld3r1D"
-IMAGE_SRV_URL = 'https://...'
-LINK_REGEX = r"(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])"
-BLACKLIST_PATH = 'static_data/words_blacklist.txt'
-WHITELIST_PATH = 'static_data/domains_whitelist.txt'
+
 bot = commands.Bot(command_prefix=settings['prefix'], intents=discord.Intents.all())
-with open('static_data/words_blacklist.txt') as file:
-    blck_lst = file.read().split(', ')
-with open(WHITELIST_PATH) as file:
-    domains_whitelist = file.read().split('\n')
-with open(BLACKLIST_PATH) as file:
-    domains_blacklist = file.read().split('\n')
-
-
-# client = discord.Client()
-def detect_domains(text):
-    return [urlparse(link.string).netloc for link in re.finditer(LINK_REGEX, text)]
-
-
-def text_is_swear(text):
-    for n_word in blck_lst:
-        if n_word in text:
-            print(n_word)
-    if any(n_word in text for n_word in blck_lst):
-        return True
-    for word in re.split(r'\W', text):
-        if len(get_close_matches(word, blck_lst, n=1, cutoff=0.9)):
-            return True
-    return False
-
-
-def process_image(url):
-    response = requests.get(url)
-    try:
-        # Not even looking inside. No need for local processing
-        content = base64.b64encode(BytesIO(response.content).getvalue())
-        body = {
-            "folderId": IMAGE_FOLDER_ID,
-            "analyze_specs": [{
-                "content": content,
-                "features": [{
-                    "type": "CLASSIFICATION",
-                    "classificationConfig": {
-                        "model": "moderation"
-                    }
-                }]
-            }]
-        }
-        r = requests.post(IMAGE_SRV_URL, data=body)
-        ans = process_json(r.json())
-        print(f'Sucessfully processed {url}')
-        return ans
-    except:
-        print(f'Failed to process {url}')
-        return None
-
-
-def process_json(content):
-    return True
 
 
 def insert_users(users_ids):
@@ -140,13 +81,14 @@ async def on_message(message):
             new_message.is_swear = True
             await message.channel.send('Found swear message')
         for domain in detect_domains(message.content):
+            print(domain)
             # TODO database logs
-            if domain in domains_whitelist:
+            if domain_whitelisted(domain):
                 await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
-            elif domain in domains_blacklist:
+            elif domain_blacklisted(domain):
                 new_message.is_ads = True
                 await message.channel.send(f'{message.author} is  breaking the community rules. Reporting.')
-                message.delete()
+                await message.delete()
             else:
                 await message.channel.send(f'Potentially unwanted stuff detected. Reporting.')
         # TODO database interaction
@@ -159,14 +101,7 @@ async def on_message(message):
         session.add(new_message)
         session.commit()
         session.close()
-
-
-@bot.command()
-async def hello(ctx, arg=None):
-    author = ctx.message.author
-    print(author.usernaame)
-    await ctx.send(
-        f'Pososi, {author}!')
+        await bot.process_commands(message)
 
 
 @bot.command()
@@ -184,24 +119,21 @@ async def msg1():
         if str(ch.type) == "text":
             await ch.send('ddd')
 
+
 @bot.command(pass_context=True)
-@commands.has_permissions(administrator=True)
+@commands.has_role('BotAdmin')
 async def add_blacklist(ctx, args):
-    domains = detect_domains(ctx.message.content)
+    domains = detect_domains(args)
     print(f'Adding domains {domains} to blacklist')
-    with open(BLACKLIST_PATH, 'a') as file:
-        file.writelines(domains)
-    domains_blacklist.extend(domains)
+    expand_blacklist(domains)
 
 
 @bot.command(pass_context=True)
-@commands.has_permissions(administrator=True)
+@commands.has_role('BotAdmin')
 async def add_whitelist(ctx, args):
-    domains = detect_domains(ctx.message.content)
+    domains = detect_domains(args)
     print(f'Adding domains {domains} to whitelist')
-    with open(WHITELIST_PATH, 'a') as file:
-        file.writelines(domains)
-    domains_whitelist.extend(domains)
+    expand_whitelist(domains)
 
 
 bot.run(settings['token'])
