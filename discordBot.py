@@ -126,6 +126,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
+    print(message)
     if message.author.bot is False:
         session = Session(bind=engine)
         user = session.query(User).filter(User.dis_id == message.author.id).first()
@@ -152,7 +153,9 @@ async def on_message(message):
         for at in message.attachments:
             if at.url.split('.')[-1] in IMAGE:
                 process_image(at.url)
-        
+        if message.reference is not None:
+            ans_msg = session.query(Message).filter(Message.dis_id == message.reference.id).first()
+        msg['parent_id'] = ans_msg
         new_message = Message(msg)
         session.add(new_message)
         session.commit()

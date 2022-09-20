@@ -23,6 +23,7 @@ class User(Base):
 class Message(Base):
     __tablename__ = 'messages'
     id = Column(Integer, primary_key=True)
+    dis_id = Column(BigInteger(), nullable=False)
     user_id = Column(Integer(), ForeignKey('users.id'))
     content = Column(String(1000), nullable=False)
     parent_id = Column(Integer(), ForeignKey('messages.id'), nullable=True)
