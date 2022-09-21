@@ -26,7 +26,7 @@ class Message(Base):
     dis_id = Column(BigInteger(), nullable=False)
     user_id = Column(Integer(), ForeignKey('users.id'))
     content = Column(String(1000), nullable=False)
-    parent_id = Column(Integer(), ForeignKey('messages.id'), nullable=True)
+    parent_id = Column(Integer(), ForeignKey('messages.id', ondelete='SET NULL'), nullable=True, )
     created_on = Column(DateTime(), default=datetime.now)
     updated_on = Column(DateTime(), default=datetime.now, onupdate=datetime.now)
     is_swear = Column(Boolean(), default=False)
@@ -41,14 +41,15 @@ class UserEmbedding(Base):
     total_msg = Column(Integer, default=0)
     swear_count = Column(Integer, default=0)
     ads_count = Column(Integer, default=0)
+    score = Column(Integer, default=0)
     user = relationship("User")
 
 
-# def add_column(engine, table_name, column):
-#     column_name = column.name
-#     column_type = column.type.compile(dialect=engine.dialect)
-#     engine.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
-#
-#
-# add_column(engine, Message.__tablename__, Message.dis_id)
+def add_column(engine, table_name, column):
+    column_name = column.name
+    column_type = column.type.compile(dialect=engine.dialect)
+    engine.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
+
+
+# add_column(engine, UserEmbedding.__tablename__, UserEmbedding.score)
 Base.metadata.create_all(engine)

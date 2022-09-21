@@ -20,11 +20,53 @@ with open('static_data/words_blacklist.txt') as file:
     blck_lst = file.read().split(', ')
 
 
+# database work
+def process_db(engine, limit=100):
+    session = Session(bind=engine)
+    last_msgs = session.query(Message).limit(limit)
+    for message in session.query(Message).exclude(last_msgs):
+        usremb = session.query(UserEmbedding).get(user_id=message.user_id)
+        usremb.score += get_sense_score(get_message_batch(engine, message), message.content) - 0.5
+        message.delete()
+    session.commit()
+
+
+# TODO nn processing
+def get_sense_score(batch, msg):
+    return 0.5
+
+
 # message processing
+# ELEVEN ALL LIKE ONE JUST LOOK AT THEM SO PRETTY
 def get_message_batch(engine, message):
     session = Session(bind=engine)
     batch = []
     base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
+    limit = 11
+    chain = [base_msg]
+    while chain[-1].parent_id is not None and limit != 2:
+        chain.append(chain[-1].parent_id)
+        limit = (12 - len(chain)) // len(chain)
+    for i, msg in enumerate(chain[:-1]):
+        batch.extend([m.content for m in session.query(Message).filter(
+            Message.created_at <= msg.created_at).limit(limit) if m.created_at > chain[i + 1].created_at])
+    batch.extend([m.content for m in session.query(Message).filter(
+        Message.created_at <= chain[-1].created_at).limit(11 - len(batch))])
+    return batch
+
+
+def get_message_batch2(engine, message):
+    session = Session(bind=engine)
+    batch = []
+    base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
+    limit = 11
+    chain = [base_msg]
+    while chain[-1].parent_id is not None and limit != 0:
+        chain.append(chain[-1].parent_id)
+        limit -= 1
+    batch.extend([m.content for m in session.query(Message).filter(
+        Message.created_at < chain[-1].created_at).limit(11 - len(batch))])
+    return batch
 
 
 def detect_domains(text):
