@@ -4,8 +4,9 @@ from discord.ext import commands, tasks
 from config import settings
 
 from processing import detect_domains, text_is_swear, process_image, process_json, \
-    domain_blacklisted, domain_whitelisted, expand_blacklist, expand_whitelist
+    domain_blacklisted, domain_whitelisted, expand_blacklist, expand_whitelist, get_message_batch, get_message_batch2
 from sqlalchemy.orm import Session, sessionmaker
+from sentence_transformers import SentenceTransformer, util
 from db_sa import *
 import nltk
 
@@ -39,6 +40,8 @@ def insert_users(users_ids):
 @bot.event
 async def on_ready():
     session = Session(bind=engine)
+    global model_sb
+    medel_sb = SentenceTransformer('distiluse-base-multilingual-cased')
     users_db = {us.dis_id for us in session.query(User).all()}
     users_bot = {us.id for us in bot.users if us.bot is False}
     users_for_bd = users_bot - users_db
@@ -96,11 +99,12 @@ async def on_message(message):
             if at.url.split('.')[-1] in IMAGE:
                 process_image(at.url)
         if message.reference is not None:
-            ans_msg = session.query(Message).filter(Message.dis_id == message.reference.id).first()
-            new_message.parent_id = ans_msg
+            ans_msg = session.query(Message).filter(Message.dis_id == message.reference.message_id).first()
+            new_message.parent_id = ans_msg.id
         session.add(new_message)
         session.commit()
         session.close()
+        print(get_message_batch(engine, message))
         await bot.process_commands(message)
 
 
@@ -111,7 +115,13 @@ async def getinfo(ctx, arg=None):
         f'Sorry, no info, {author}!')
 
 
-@tasks.loop(seconds=5)
+@bot.command()
+async def get_brahch(ctx, arg=None):
+    author = ctx.message.author
+    await ctx.send(
+        f'Sorry, no info, {author}!')
+
+@tasks.loop(seconds=35)
 async def msg1():
     message_channel = bot.get_all_channels()
     for ch in message_channel:

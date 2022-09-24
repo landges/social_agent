@@ -43,7 +43,8 @@ def get_message_batch(engine, message):
     batch = []
     base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
-    chain = [base_msg]
+    chain = [base_msg,]
+    print(chain[-1].parent_id)
     while chain[-1].parent_id is not None and limit != 2:
         chain.append(chain[-1].parent_id)
         limit = (12 - len(chain)) // len(chain)
