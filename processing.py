@@ -5,6 +5,8 @@ import base64
 from difflib import get_close_matches
 from io import BytesIO
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+
 from db_sa import *
 
 IMAGE_FOLDER_ID = "som3f0ld3r1D"
@@ -21,13 +23,15 @@ with open('static_data/words_blacklist.txt') as file:
 
 
 # database work
-def process_db(engine, limit=100):
+def process_db(engine, minutes=5):
     session = Session(bind=engine)
-    last_msgs = session.query(Message).limit(limit)
-    for message in session.query(Message).exclude(last_msgs):
-        usremb = session.query(UserEmbedding).get(user_id=message.user_id)
-        usremb.score += get_sense_score(get_message_batch(engine, message), message.content) - 0.5
-        message.delete()
+    interval = datetime.now() - timedelta(minutes=minutes)
+    for user in session.query(User).all():
+        usremb = session.query(UserEmbedding).get(user_id=user.id)
+        user_msgs = session.query(Message).filter(Message.created_on >= interval,
+                                                  user_id=user.id)
+        for msg in user_msgs:
+            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content) - 0.5
     session.commit()
 
 
@@ -38,35 +42,35 @@ def get_sense_score(batch, msg):
 
 # message processing
 # ELEVEN ALL LIKE ONE JUST LOOK AT THEM SO PRETTY
-def get_message_batch(engine, message):
+def get_message_batch(engine, base_msg):
     session = Session(bind=engine)
     batch = []
-    base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
+    # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
-    chain = [base_msg,]
+    chain = [base_msg, ]
     print(chain[-1].parent_id)
     while chain[-1].parent_id is not None and limit != 2:
-        chain.append(chain[-1].parent_id)
+        chain.append(Message.query.get(chain[-1].parent_id))
         limit = (12 - len(chain)) // len(chain)
     for i, msg in enumerate(chain[:-1]):
         batch.extend([m.content for m in session.query(Message).filter(
-            Message.created_at <= msg.created_at).limit(limit) if m.created_at > chain[i + 1].created_at])
+            Message.created_at <= msg.created_at, channel=base_msg.channel).limit(limit) if m.created_at > chain[i + 1].created_at])
     batch.extend([m.content for m in session.query(Message).filter(
-        Message.created_at <= chain[-1].created_at).limit(11 - len(batch))])
+        Message.created_at <= chain[-1].created_at, channel=base_msg.channel).limit(11 - len(batch))])
     return batch
 
 
 def get_message_batch2(engine, message):
     session = Session(bind=engine)
     batch = []
-    base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
+    # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
-    chain = [base_msg]
+    chain = [message, ]
     while chain[-1].parent_id is not None and limit != 0:
-        chain.append(chain[-1].parent_id)
+        chain.append(Message.query.get(chain[-1].parent_id))
         limit -= 1
     batch.extend([m.content for m in session.query(Message).filter(
-        Message.created_at < chain[-1].created_at).limit(11 - len(batch))])
+        Message.created_at < chain[-1].created_at, channel=message.channel).limit(11 - len(batch))])
     return batch
 
 

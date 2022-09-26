@@ -31,6 +31,7 @@ class Message(Base):
     updated_on = Column(DateTime(), default=datetime.now, onupdate=datetime.now)
     is_swear = Column(Boolean(), default=False)
     is_ads = Column(Boolean(), default=False)
+    channel = Column(String(20), nullable=False)
     user = relationship("User")
 
 
@@ -51,5 +52,5 @@ def add_column(engine, table_name, column):
     engine.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
 
 
-# add_column(engine, UserEmbedding.__tablename__, UserEmbedding.score)
+#add_column(engine, Message.__tablename__, Message.channel)
 Base.metadata.create_all(engine)

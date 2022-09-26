@@ -74,7 +74,8 @@ async def on_message(message):
     if message.author.bot is False:
         session = Session(bind=engine)
         user = session.query(User).filter(User.dis_id == message.author.id).first()
-        new_message = Message(user=user, content=message.content, dis_id=message.id)
+        new_message = Message(user=user, content=message.content, dis_id=message.id,
+                              channel=message.channel)
         if message.content == 'test':
             print(message.author)
             await message.channel.send('Testing 1 2 3')
@@ -121,8 +122,8 @@ async def get_brahch(ctx, arg=None):
     await ctx.send(
         f'Sorry, no info, {author}!')
 
-@tasks.loop(seconds=35)
-async def msg1():
+@tasks.loop(seconds=300)
+async def process_messages():
     message_channel = bot.get_all_channels()
     for ch in message_channel:
         # TODO get last messages on time on task loop and insert to DB
