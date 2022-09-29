@@ -3,7 +3,7 @@ import asyncio
 from discord.ext import commands, tasks
 from config import settings
 
-from processing import detect_domains, text_is_swear, process_image, process_json, \
+from processing import detect_domains, text_is_swear, process_image, process_db, \
     domain_blacklisted, domain_whitelisted, expand_blacklist, expand_whitelist, get_message_batch, get_message_batch2
 from sqlalchemy.orm import Session, sessionmaker
 from sentence_transformers import SentenceTransformer, util
@@ -75,7 +75,7 @@ async def on_message(message):
         session = Session(bind=engine)
         user = session.query(User).filter(User.dis_id == message.author.id).first()
         new_message = Message(user=user, content=message.content, dis_id=message.id,
-                              channel=message.channel)
+                              channel=message.channel.id)
         if message.content == 'test':
             print(message.author)
             await message.channel.send('Testing 1 2 3')
@@ -101,11 +101,12 @@ async def on_message(message):
                 process_image(at.url)
         if message.reference is not None:
             ans_msg = session.query(Message).filter(Message.dis_id == message.reference.message_id).first()
-            new_message.parent_id = ans_msg.id
+            if ans_msg:
+                new_message.parent_id = ans_msg.id
         session.add(new_message)
         session.commit()
+        print(get_message_batch(engine, session.query(Message).filter(dis_id=message.id).first()))
         session.close()
-        print(get_message_batch(engine, message))
         await bot.process_commands(message)
 
 
@@ -122,13 +123,15 @@ async def get_brahch(ctx, arg=None):
     await ctx.send(
         f'Sorry, no info, {author}!')
 
+
 @tasks.loop(seconds=300)
 async def process_messages():
     message_channel = bot.get_all_channels()
+    await process_db(engine=engine)
     for ch in message_channel:
         # TODO get last messages on time on task loop and insert to DB
         if str(ch.type) == "text":
-            await ch.send('ddd')
+            await ch.send('I do process')
 
 
 @bot.command(pass_context=True)
