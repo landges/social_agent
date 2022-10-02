@@ -26,11 +26,10 @@ with open('static_data/words_blacklist.txt') as file:
 # ELEVEN ALL LIKE ONE JUST LOOK AT THEM SO PRETTY
 def get_message_batch(engine, base_msg):
     session = Session(bind=engine)
-    batch = []
     # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
     chain = [base_msg, ]
-    fix_date = base_msg.created_on - timedelta(minutes=3)
+    batch = [base_msg.content, ]
     # get message branch
     while chain[-1].parent_id is not None and limit != 2:
         parent_msg = session.query(Message).filter(Message.id == chain[-1].parent_id).first()
@@ -45,22 +44,26 @@ def get_message_batch(engine, base_msg):
 
         batch.append([m.content for m in chain_msg])
 
-    # batch.extend([m.content for m in session.query(Message).filter(
-    #     Message.created_on.between(fix_date,chain[-1].created_on),Message.channel == base_msg.channel).order_by(desc(Message.id)).limit(11 - len(batch)).all()])
+    batch.extend([m.content for m in session.query(Message).filter(
+        Message.created_on < chain[-1].created_on, Message.channel == base_msg.channel).order_by(
+        desc(Message.id)).limit(12 - len(batch)).all()])
     return batch
 
 
 def get_message_batch2(engine, message):
     session = Session(bind=engine)
-    batch = []
+
     # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
     chain = [message, ]
+    batch = [message.content, ]
     while chain[-1].parent_id is not None and limit != 0:
         chain.append(session.query(Message).filter(Message.parent_id == chain[-1].parent_id).first())
+        batch.append(chain[-1].content)
         limit -= 1
     batch.extend([m.content for m in session.query(Message).filter(
-        Message.created_on < chain[-1].created_on, Message.channel == message.channel).limit(11 - len(batch))])
+        Message.created_on < chain[-1].created_on, Message.channel == message.channel).order_by(
+        desc(Message.id)).limit(limit)])
     return batch
 
 
