@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 import discord
 import asyncio
 from discord.ext import commands, tasks
+from scipy.spatial import distance
+
 from config import settings
 
-from processing import detect_domains, text_is_swear, process_image, process_db, \
+from processing import detect_domains, text_is_swear, process_image, \
     domain_blacklisted, domain_whitelisted, expand_blacklist, expand_whitelist, get_message_batch, get_message_batch2
 from sqlalchemy.orm import Session, sessionmaker
 from sentence_transformers import SentenceTransformer, util
@@ -41,7 +45,7 @@ def insert_users(users_ids):
 async def on_ready():
     session = Session(bind=engine)
     global model_sb
-    medel_sb = SentenceTransformer('distiluse-base-multilingual-cased')
+    model_sb = SentenceTransformer('distiluse-base-multilingual-cased')
     users_db = {us.dis_id for us in session.query(User).all()}
     users_bot = {us.id for us in bot.users if us.bot is False}
     users_for_bd = users_bot - users_db
@@ -104,8 +108,8 @@ async def on_message(message):
                 new_message.parent_id = ans_msg.id
         session.add(new_message)
         session.commit()
-        print('bath1',get_message_batch(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
-        print('batch2',get_message_batch2(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
+        print('bath1', get_message_batch(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
+        print('batch2', get_message_batch2(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
         session.close()
         await bot.process_commands(message)
 
@@ -124,14 +128,28 @@ async def get_brahch(ctx, arg=None):
         f'Sorry, no info, {author}!')
 
 
+# TODO nn processing
+def get_sense_score(batch, msg, medel_sb=None, threshold=0.7):
+    message_embed = medel_sb.encode(msg)
+    embeds = [medel_sb.encode(' '.join(chain)) for chain in batch]
+    corr = max([distance.cosine(embed, message_embed) for embed in embeds])
+    if corr >= threshold:
+        return 0.5
+    else:
+        return 0.2
+
+
 @tasks.loop(seconds=300)
 async def process_messages():
-    message_channel = bot.get_all_channels()
-    await process_db(engine=engine)
-    for ch in message_channel:
-        # TODO get last messages on time on task loop and insert to DB
-        if str(ch.type) == "text":
-            await ch.send('I do process')
+    session = Session(bind=engine)
+    interval = datetime.now() - timedelta(minutes=4)
+    for user in session.query(User).all():
+        usremb = session.query(UserEmbedding).filter(UserEmbedding.user_id == user.id).first()
+        user_msgs = session.query(Message).filter(Message.created_on.between(interval, datetime.now()),
+                                                  Message.user_id == user.id)
+        for msg in user_msgs:
+            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content, model_sb) - 0.5
+    session.commit()
 
 
 @bot.command(pass_context=True)

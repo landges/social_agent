@@ -7,7 +7,6 @@ from io import BytesIO
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from datetime import datetime, timedelta
-
 from db_sa import *
 
 IMAGE_FOLDER_ID = "som3f0ld3r1D"
@@ -21,24 +20,6 @@ with open(BLACKLIST_PATH) as file:
     domains_blacklist = file.read().split('\n')
 with open('static_data/words_blacklist.txt') as file:
     blck_lst = file.read().split(', ')
-
-
-# database work
-def process_db(engine, minutes=5):
-    session = Session(bind=engine)
-    interval = datetime.now() - timedelta(minutes=minutes)
-    for user in session.query(User).all():
-        usremb = session.query(UserEmbedding).get(user_id=user.id)
-        user_msgs = session.query(Message).filter(Message.created_on >= interval,
-                                                  user_id=user.id)
-        for msg in user_msgs:
-            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content) - 0.5
-    session.commit()
-
-
-# TODO nn processing
-def get_sense_score(batch, msg):
-    return 0.5
 
 
 # message processing
@@ -59,9 +40,10 @@ def get_message_batch(engine, base_msg):
     for i, msg in enumerate(chain[:-1]):
         fix_date_chain = msg.created_on - timedelta(minutes=3)
         chain_msg = session.query(Message).filter(
-            Message.created_on.between(fix_date_chain, msg.created_on), Message.channel == base_msg.channel).order_by(desc(Message.id)).limit(limit).all()
+            Message.created_on.between(fix_date_chain, msg.created_on), Message.channel == base_msg.channel).order_by(
+            desc(Message.id)).limit(limit).all()
 
-        batch.extend([m.content for m in chain_msg])
+        batch.append([m.content for m in chain_msg])
 
     # batch.extend([m.content for m in session.query(Message).filter(
     #     Message.created_on.between(fix_date,chain[-1].created_on),Message.channel == base_msg.channel).order_by(desc(Message.id)).limit(11 - len(batch)).all()])
