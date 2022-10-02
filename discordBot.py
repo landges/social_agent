@@ -70,7 +70,6 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
-    print(message)
     if message.author.bot is False:
         session = Session(bind=engine)
         user = session.query(User).filter(User.dis_id == message.author.id).first()
@@ -105,7 +104,8 @@ async def on_message(message):
                 new_message.parent_id = ans_msg.id
         session.add(new_message)
         session.commit()
-        print(get_message_batch(engine, session.query(Message).filter(dis_id=message.id).first()))
+        print('bath1',get_message_batch(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
+        print('batch2',get_message_batch2(engine, session.query(Message).filter(Message.dis_id == message.id).first()))
         session.close()
         await bot.process_commands(message)
 

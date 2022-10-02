@@ -5,6 +5,7 @@ import base64
 from difflib import get_close_matches
 from io import BytesIO
 from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc
 from datetime import datetime, timedelta
 
 from db_sa import *
@@ -48,15 +49,22 @@ def get_message_batch(engine, base_msg):
     # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
     limit = 11
     chain = [base_msg, ]
-    print(chain[-1].parent_id)
+    fix_date = base_msg.created_on - timedelta(minutes=3)
+    # get message branch
     while chain[-1].parent_id is not None and limit != 2:
-        chain.append(Message.query.get(chain[-1].parent_id))
+        parent_msg = session.query(Message).filter(Message.id == chain[-1].parent_id).first()
+        chain.append(parent_msg)
         limit = (12 - len(chain)) // len(chain)
+    # get chain message for msg in branch
     for i, msg in enumerate(chain[:-1]):
-        batch.extend([m.content for m in session.query(Message).filter(
-            Message.created_at <= msg.created_at, channel=base_msg.channel).limit(limit) if m.created_at > chain[i + 1].created_at])
-    batch.extend([m.content for m in session.query(Message).filter(
-        Message.created_at <= chain[-1].created_at, channel=base_msg.channel).limit(11 - len(batch))])
+        fix_date_chain = msg.created_on - timedelta(minutes=3)
+        chain_msg = session.query(Message).filter(
+            Message.created_on.between(fix_date_chain, msg.created_on), Message.channel == base_msg.channel).order_by(desc(Message.id)).limit(limit).all()
+
+        batch.extend([m.content for m in chain_msg])
+
+    # batch.extend([m.content for m in session.query(Message).filter(
+    #     Message.created_on.between(fix_date,chain[-1].created_on),Message.channel == base_msg.channel).order_by(desc(Message.id)).limit(11 - len(batch)).all()])
     return batch
 
 
@@ -67,10 +75,10 @@ def get_message_batch2(engine, message):
     limit = 11
     chain = [message, ]
     while chain[-1].parent_id is not None and limit != 0:
-        chain.append(Message.query.get(chain[-1].parent_id))
+        chain.append(session.query(Message).filter(Message.parent_id == chain[-1].parent_id).first())
         limit -= 1
     batch.extend([m.content for m in session.query(Message).filter(
-        Message.created_at < chain[-1].created_at, channel=message.channel).limit(11 - len(batch))])
+        Message.created_on < chain[-1].created_on, Message.channel == message.channel).limit(11 - len(batch))])
     return batch
 
 
