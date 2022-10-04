@@ -129,9 +129,9 @@ async def get_brahch(ctx, arg=None):
 
 
 # TODO nn processing
-def get_sense_score(batch, msg, medel_sb=None, threshold=0.7):
-    message_embed = medel_sb.encode(msg)
-    embeds = [medel_sb.encode(' '.join(chain)) for chain in batch]
+def get_sense_score(batch, msg, model_sb=None, threshold=0.7):
+    message_embed = model_sb.encode(msg)
+    embeds = [model_sb.encode(' '.join(chain)) for chain in batch]
     corr = max([distance.cosine(embed, message_embed) for embed in embeds])
     if corr >= threshold:
         return 0.5
@@ -149,6 +149,10 @@ async def process_messages():
                                                   Message.user_id == user.id)
         for msg in user_msgs:
             usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content, model_sb)
+            if msg.is_swear:
+                usremb.score -= 0.2
+            if msg.is_ads:
+                usremb.score -= 0.5
     session.commit()
 
 
