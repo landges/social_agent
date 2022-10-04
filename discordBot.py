@@ -136,7 +136,7 @@ def get_sense_score(batch, msg, medel_sb=None, threshold=0.7):
     if corr >= threshold:
         return 0.5
     else:
-        return 0.2
+        return -0.2
 
 
 @tasks.loop(seconds=300)
@@ -148,7 +148,7 @@ async def process_messages():
         user_msgs = session.query(Message).filter(Message.created_on.between(interval, datetime.now()),
                                                   Message.user_id == user.id)
         for msg in user_msgs:
-            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content, model_sb) - 0.5
+            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content, model_sb)
     session.commit()
 
 

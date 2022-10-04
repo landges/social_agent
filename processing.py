@@ -36,7 +36,7 @@ def get_message_batch(engine, base_msg):
         chain.append(parent_msg)
         limit = (12 - len(chain)) // len(chain)
     # get chain message for msg in branch
-    for i, msg in enumerate(chain[:-1]):
+    for i, msg in enumerate(chain[1:-1]):
         # fix_date_chain = msg.created_on - timedelta(minutes=3)
         # half-interval
         chain_msg = session.query(Message).filter(
@@ -55,9 +55,9 @@ def get_message_batch2(engine, message):
     session = Session(bind=engine)
 
     # base_msg = session.query(Message).filter(Message.dis_id == message.id).first()
-    limit = 11
+    limit = 12
     chain = [message, ]
-    batch = [message.content, ]
+    batch = []
     while chain[-1].parent_id is not None and limit != 0:
         parent_msg = session.query(Message).filter(Message.id == chain[-1].parent_id).first()
         chain.append(parent_msg)
