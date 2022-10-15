@@ -91,6 +91,7 @@ async def on_message(message):
             print(domain)
             # TODO database logs
             if domain_whitelisted(domain):
+
                 await message.channel.send(f'{message.author} I like this stuff. *SNIFF SNIFF*')
             elif domain_blacklisted(domain):
                 new_message.is_ads = True
@@ -139,21 +140,27 @@ def get_sense_score(batch, msg, model_sb=None, threshold=0.7):
         return -0.2
 
 
-@tasks.loop(seconds=300)
+@tasks.loop(seconds=100)
 async def process_messages():
     session = Session(bind=engine)
     interval = datetime.now() - timedelta(minutes=4)
     for user in session.query(User).all():
         usremb = session.query(UserEmbedding).filter(UserEmbedding.user_id == user.id).first()
         user_msgs = session.query(Message).filter(Message.created_on.between(interval, datetime.now()),
-                                                  Message.user_id == user.id)
+                                                  Message.user_id == user.id).all()
         for msg in user_msgs:
-            usremb.score += get_sense_score(get_message_batch(engine, msg), msg.content, model_sb)
+            score = get_sense_score(get_message_batch(engine, msg), msg.content, model_sb)
+            usremb.total_msg += 1
+            usremb.score += score
             if msg.is_swear:
+                usremb.swear_count += 1
                 usremb.score -= 0.2
             if msg.is_ads:
+                usremb.ads_count += 1
                 usremb.score -= 0.5
+        session.add(usremb)
     session.commit()
+    session.close()
 
 
 @bot.command(pass_context=True)

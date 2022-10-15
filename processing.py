@@ -123,7 +123,7 @@ def domain_blacklisted(domain):
 
 
 def domain_whitelisted(domain):
-    return domain in domains_blacklist
+    return domain in domains_whitelist
 
 
 def expand_blacklist(domains):
