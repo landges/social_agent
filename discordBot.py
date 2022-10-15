@@ -52,7 +52,7 @@ async def on_ready():
     if len(users_for_bd) > 0:
         insert_users(users_for_bd)
     print(f'Bot connected as {bot.user}')
-    # msg1.start()
+    process_messages.start()
 
 
 @bot.event

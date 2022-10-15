@@ -1,3 +1,5 @@
+import json
+
 import twitter
 from pytwitter import Api
 from api_keys import TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET, TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET, \
@@ -7,6 +9,9 @@ import requests
 import random
 from bs4 import BeautifulSoup as bs
 from tqdm import tqdm
+import tweepy
+import sys
+import re
 
 
 def get_free_proxies():
@@ -43,28 +48,73 @@ def get_access_proxies():
             continue
     return success_proxy
 
+def parse_tweet(tweet):
+    retweet_user=re.findall(r'RT @[\w]*',tweet)
+    hashtags = re.findall(r'#[\w]*',tweet)
+    print(hashtags)
+    print(retweet_user)
+
+def get_user_tweets_url(user_id):
+    # Replace with user ID below
+    return "https://api.twitter.com/2/users/{}/tweets".format(user_id)
+
+def get_user_url(usernames):
+    # Specify the usernames that you want to lookup below
+    # You can enter up to 100 comma-separated values.
+    user_fields = "user.fields=description,created_at,public_metrics,location"
+    # User fields are adjustable, options include:
+    # created_at, description, entities, id, location, name,
+    # pinned_tweet_id, profile_image_url, protected,
+    # public_metrics, url, username, verified, and withheld
+    url = "https://api.twitter.com/2/users/by?{}&{}".format(usernames, user_fields)
+    return url
+
+
+def get_params():
+    # Tweet fields are adjustable.
+    # Options include:
+    # attachments, author_id, context_annotations,
+    # conversation_id, created_at, entities, geo, id,
+    # in_reply_to_user_id, lang, non_public_metrics, organic_metrics,
+    # possibly_sensitive, promoted_metrics, public_metrics, referenced_tweets,
+    # source, text, and withheld
+    return {"tweet.fields": "entities,created_at,text,public_metrics"}
+
+
+def bearer_oauth(r):
+    """
+    Method required by bearer token authentication.
+    """
+
+    r.headers["Authorization"] = f"Bearer {TWITTER_BEARER_TOKEN}"
+    r.headers["User-Agent"] = "v2UserTweetsPython"
+    return r
+
+
+def connect_to_endpoint(url, params):
+    if params is not None:
+        response = requests.request("GET", url, auth=bearer_oauth, params=params)
+    else:
+        response = requests.request("GET", url, auth=bearer_oauth)
+    print(response.status_code)
+    if response.status_code != 200:
+        raise Exception(
+            "Request returned an error: {} {}".format(
+                response.status_code, response.text
+            )
+        )
+    return response.json()
+
 
 if __name__ == "__main__":
-    # pr='20.54.56.26:8080'
-    pr = get_access_proxies()
-    api = Api(consumer_key=TWITTER_CONSUMER_KEY,
-              consumer_secret=TWITTER_CONSUMER_SECRET,
-              access_token=TWITTER_ACCESS_TOKEN,
-              access_secret=TWITTER_ACCESS_TOKEN_SECRET, proxies={'http': pr, 'https': pr})
-    user = api.get_users(usernames=['justinbieber'])
-    user_id = user.data[0].id
-    following = api.get_following(user_id=user_id)
-    followers = api.get_followers(user_id=user_id)
-    liked_tweets = api.get_user_liked_tweets(user_id=user_id)
-    user_tweets = api.get_timelines(user_id=user_id).data
-    print(user_tweets)
-    for info in user_tweets:
-        print("ID: {}".format(info.id))
-        # print(info.)
-        print(info.text)
-        print("\n")
-    # tw = api.get_tweets(user_fields=user)
-    # print(tw)
-    print(following)
-    import tweepy
-
+    usernames = "usernames=TwitterDev,TwitterAPI"
+    users_url = get_user_url(usernames)
+    users_response = connect_to_endpoint(users_url, params=None)
+    # users_response = json.dumps(users_response, indent=4, sort_keys=True)
+    for user in users_response["data"]:
+        user_id = int(user["id"])
+        params = get_params()
+        twewts_response = connect_to_endpoint(get_user_tweets_url(user_id), params=params)
+        print(json.dumps(twewts_response, indent=4, sort_keys=True))
+    # json_response = connect_to_endpoint(url, params=None)
+    # print(json.dumps(json_response, indent=4, sort_keys=True))
